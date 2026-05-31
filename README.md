@@ -1,73 +1,85 @@
-# Nome do Jogo
+# Remind
 
-Projeto final da disciplina de Introdução a Algoritmos/Programação, desenvolvido com Python e Pygame.
-
-Este repositório é um template para os grupos da disciplina. A proposta é começar com uma base funcional e evoluir o jogo ao longo do semestre.
+Projeto final da disciplina de Introdução a Algoritmos/Programação desenvolvido com Python e Pygame.
 
 ## Integrantes do grupo
 
-- Nome do integrante 1
-- Nome do integrante 2
-- Nome do integrante 3
-- Nome do integrante 4
+* Patrick Augusto de Oliveira
+* Fernando Rodrigues Figueiredo
+* Pedro Arthur de Sena Ribeiro
+* Luis Fernando de Sousa Dias
 
 ## Estrutura do projeto
 
-- `main.py`: ponto de entrada da aplicação.
-- `src/`: código-fonte principal do jogo (loop, regras, sprites e dados).
-- `assets/`: imagens, fontes e sons.
-- `data/`: arquivos persistentes (recorde/ranking).
-- `tests/`: testes unitários com `pytest`.
-- `docs/`: documentação do projeto, incluindo proposta inicial.
+* `main.py`: ponto de entrada da aplicação.
+* `src/`: código-fonte principal do jogo.
+* `assets/`: imagens, fontes e sons.
+* `data/`: armazenamento de recordes e configurações.
+* `tests/`: testes unitários com pytest.
+* `docs/`: documentação e proposta do projeto.
 
 ## Descrição do jogo
 
-Descreva brevemente a ideia principal do jogo.
+Remind é um jogo da memória desenvolvido em Python utilizando a biblioteca Pygame.
 
-Exemplo:
+O jogador deve encontrar todos os pares de cartas escondidas no tabuleiro. As cartas são embaralhadas aleatoriamente no início de cada partida, exigindo atenção e memória para localizar os pares corretos.
 
-> O jogo consiste em controlar um personagem que deve coletar moedas e evitar obstáculos. O jogador ganha pontos ao coletar itens e perde vidas ao colidir com obstáculos. A partida termina quando o tempo acaba ou quando o jogador perde todas as vidas.
+O objetivo é concluir o jogo com o menor número possível de tentativas e no menor tempo.
 
 ## Objetivo do jogador
 
-Explique o que o jogador precisa fazer para vencer ou avançar no jogo.
-
-Exemplo:
-
-> O objetivo é coletar a maior quantidade possível de itens antes que o tempo acabe, evitando colisões com os obstáculos.
+Encontrar todos os pares de cartas do tabuleiro antes de finalizar a partida, utilizando o menor número de jogadas possível.
 
 ## Regras do jogo
 
-Liste as principais regras do jogo.
-
-Exemplo:
-
-- O jogador se movimenta usando as setas do teclado.
-- Cada item coletado aumenta a pontuação.
-- Colidir com um obstáculo reduz a quantidade de vidas.
-- A partida termina quando o jogador perde todas as vidas ou quando o tempo acaba.
+* Todas as cartas iniciam viradas para baixo.
+* O jogador pode revelar duas cartas por vez.
+* Cartas iguais permanecem abertas.
+* Cartas diferentes são ocultadas novamente.
+* Cada tentativa é contabilizada.
+* O jogo termina quando todos os pares forem encontrados.
 
 ## Controles
 
-Informe as teclas ou comandos utilizados no jogo.
+* Clique esquerdo do mouse: revelar carta.
+* ESC: sair do jogo.
 
-Exemplo:
+## Funcionalidades previstas
 
-- Seta para cima: mover para cima
-- Seta para baixo: mover para baixo
-- Seta para esquerda: mover para esquerda
-- Seta para direita: mover para direita
-- Espaço: realizar ação
-- ESC: sair do jogo
+* Tela inicial.
+* Tabuleiro embaralhado aleatoriamente.
+* Sistema de pares.
+* Contador de tentativas.
+* Cronômetro.
+* Tela de vitória.
+* Sistema de recordes.
+* Salvamento de dados em arquivo.
+
+## Estruturas de dados utilizadas
+
+* Listas.
+* Matrizes.
+* Dicionários.
+* Tuplas.
 
 ## Como executar o projeto
 
-### 1. Clonar o repositório
+### Clonar o repositório
 
 ```bash
-git clone LINK_DO_REPOSITORIO
-cd NOME_DA_PASTA
+git clone https://github.com/patrickaugustodeoliveira/Remind---Pygame.git
+cd Remind---Pygame
+```
+
+### Instalar dependências
+
+```bash
 pip install -r requirements.txt
+```
+
+### Executar o jogo
+
+```bash
 python main.py
 ```
 
@@ -79,13 +91,32 @@ python -m pytest
 
 ## Checklist mínimo para entrega
 
-- Preencher este README com nome final, descrição real, regras e controles do jogo.
-- Atualizar `docs/proposta.MD` com a proposta do grupo.
-- Garantir que o jogo executa com `python main.py`.
-- Garantir que os testes passam com `pytest`.
+* [x] Definição do jogo.
+* [x] Proposta inicial documentada.
+* [ ] Protótipo funcional.
+* [ ] Sistema de cartas.
+* [ ] Sistema de pontuação.
+* [ ] Persistência de dados.
+* [ ] Testes implementados.
 
-## Observações para os alunos
+## Cronograma
 
-- Mantenham o código organizado em módulos pequenos e com responsabilidade clara.
-- Comentem partes importantes da lógica, principalmente regras do jogo.
-- Registrem decisões técnicas no README do grupo ao longo do desenvolvimento.
+### Semana 1
+
+Definição da proposta e organização do projeto.
+
+### Semana 2
+
+Implementação do protótipo inicial e tabuleiro.
+
+### Semana 3
+
+Implementação das regras principais e sistema de pontuação.
+
+### Semana 4
+
+Finalização, testes e preparação da apresentação.
+
+## Licença
+
+Projeto acadêmico desenvolvido para a disciplina de Introdução a Algoritmos/Programação da PUC Minas.
