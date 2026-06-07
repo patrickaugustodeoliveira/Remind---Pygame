@@ -93,7 +93,7 @@ python -m pytest
 
 * [x] Definição do jogo.
 * [x] Proposta inicial documentada.
-* [ ] Protótipo funcional.
+* [x] Protótipo funcional.
 * [ ] Sistema de cartas.
 * [ ] Sistema de pontuação.
 * [ ] Persistência de dados.
