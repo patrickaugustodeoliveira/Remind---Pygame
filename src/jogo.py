@@ -1,5 +1,6 @@
 """Loop principal e regras do jogo da memoria Remind."""
 
+import math
 import random
 import sys
 
@@ -7,6 +8,8 @@ import pygame
 
 from src.config import CAMINHO_RECORDE
 from src.dados import carregar_recorde, recorde_melhor, salvar_recorde
+from src.desenhos import desenhar_fruta, SIMBOLOS_FRUTAS
+from src.sons import obter_gerenciador
 
 LARGURA = 640
 ALTURA = 560
@@ -19,18 +22,29 @@ CARD_H = 100
 MARGEM = 15
 OFFSET_X = 60
 OFFSET_Y = 95
-DELAY_MS = 1000
+DELAY_MS = 900
 
-FUNDO = (20, 30, 60)
-COR_COSTAS = (30, 50, 120)
+# Paleta de fundo (gradiente vertical, do azul escuro ao azul levemente mais claro)
+FUNDO_TOPO = (24, 32, 64)
+FUNDO_BASE = (44, 58, 110)
+
+COR_COSTAS = (60, 90, 200)
+COR_COSTAS_BORDA = (40, 65, 160)
 COR_VIRADA = (255, 255, 255)
-COR_ACERTADA = (50, 180, 80)
-COR_BORDA = (0, 0, 0)
-COR_TEXTO = (0, 0, 0)
-COR_HUD = (255, 255, 255)
+COR_ACERTADA = (235, 250, 235)
+COR_ACERTADA_BORDA = (70, 190, 100)
+COR_BORDA = (15, 20, 40)
+COR_TEXTO = (20, 20, 30)
+COR_HUD = (235, 240, 255)
+COR_HUD_SOMBRA = (10, 15, 30)
 COR_DESTAQUE = (255, 220, 50)
+COR_SOMBRA_CARTA = (10, 14, 30)
 
-SIMBOLOS = ["A", "B", "C", "D", "E", "F", "G", "H"]
+COR_BOTAO = (235, 165, 35)
+COR_BOTAO_HOVER = (255, 185, 60)
+COR_BOTAO_TEXTO = (30, 20, 10)
+
+SIMBOLOS = SIMBOLOS_FRUTAS
 TOTAL_PARES = len(SIMBOLOS)
 
 GLIFOS = {
@@ -78,6 +92,23 @@ GLIFOS = {
     " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
 }
 
+# Botão "Jogar Novamente" exibido na tela de vitória
+BOTAO_LARGURA = 230
+BOTAO_ALTURA = 46
+BOTAO_X = (LARGURA - BOTAO_LARGURA) // 2
+BOTAO_Y = ALTURA - 64
+BOTAO_RECT = pygame.Rect(BOTAO_X, BOTAO_Y, BOTAO_LARGURA, BOTAO_ALTURA)
+
+# Botão "Jogar" exibido no menu inicial
+BOTAO_MENU_LARGURA = 220
+BOTAO_MENU_ALTURA = 56
+BOTAO_MENU_X = (LARGURA - BOTAO_MENU_LARGURA) // 2
+BOTAO_MENU_Y = ALTURA // 2 + 40
+BOTAO_MENU_RECT = pygame.Rect(BOTAO_MENU_X, BOTAO_MENU_Y, BOTAO_MENU_LARGURA, BOTAO_MENU_ALTURA)
+
+# Duração da animação de virar carta (em ms) — efeito de "achatar e expandir"
+ANIM_VIRAR_MS = 160
+
 
 def criar_baralho(simbolos=None):
     """Cria uma lista com dois cards de cada simbolo."""
@@ -100,6 +131,7 @@ def criar_tabuleiro(simbolos=None):
                     "simbolo": simbolo,
                     "virado": False,
                     "acertado": False,
+                    "anim_inicio": None,  # ticks de quando comecou a animar (virar)
                 }
             )
         tabuleiro.append(linha)
@@ -160,8 +192,16 @@ def medir_texto(texto, escala=2):
     return len(texto) * 6 * escala, 7 * escala
 
 
-def desenhar_texto(surface, texto, cor, posicao, escala=2):
-    """Desenha texto usando glifos bitmap para evitar dependencia do pygame.font."""
+def desenhar_texto(surface, texto, cor, posicao, escala=2, sombra=None):
+    """Desenha texto usando glifos bitmap. Se 'sombra' for informada, desenha
+    uma copia deslocada 1-2px atras do texto para dar profundidade."""
+    if sombra is not None:
+        x_s, y_s = posicao
+        _desenhar_texto_simples(surface, texto, sombra, (x_s + 2, y_s + 2), escala)
+    _desenhar_texto_simples(surface, texto, cor, posicao, escala)
+
+
+def _desenhar_texto_simples(surface, texto, cor, posicao, escala):
     x_inicial, y_inicial = posicao
     for indice, caractere in enumerate(texto.upper()):
         glifo = GLIFOS.get(caractere, GLIFOS[" "])
@@ -178,57 +218,145 @@ def desenhar_texto(surface, texto, cor, posicao, escala=2):
                     pygame.draw.rect(surface, cor, rect)
 
 
-def desenhar_tabuleiro(surface, tabuleiro):
+def desenhar_fundo(surface):
+    """Desenha um gradiente vertical simples como pano de fundo."""
+    for y in range(ALTURA):
+        frac = y / ALTURA
+        r = int(FUNDO_TOPO[0] + (FUNDO_BASE[0] - FUNDO_TOPO[0]) * frac)
+        g = int(FUNDO_TOPO[1] + (FUNDO_BASE[1] - FUNDO_TOPO[1]) * frac)
+        b = int(FUNDO_TOPO[2] + (FUNDO_BASE[2] - FUNDO_TOPO[2]) * frac)
+        pygame.draw.line(surface, (r, g, b), (0, y), (LARGURA, y))
+
+
+def _largura_animada(carta, agora):
+    """Calcula a largura horizontal 'achatada' da carta durante a animacao de virar.
+
+    Retorna um valor entre 0 (carta de perfil, no meio do giro) e 1 (carta normal).
+    """
+    if carta["anim_inicio"] is None:
+        return 1.0
+    decorrido = agora - carta["anim_inicio"]
+    if decorrido >= ANIM_VIRAR_MS:
+        return 1.0
+    progresso = decorrido / ANIM_VIRAR_MS
+    return abs(math.cos(progresso * math.pi))
+
+
+def desenhar_carta(surface, carta, rect, agora):
+    """Desenha uma carta, incluindo sombra e animacao de virar."""
+    sombra_rect = rect.move(3, 4)
+    pygame.draw.rect(surface, COR_SOMBRA_CARTA, sombra_rect, border_radius=12)
+
+    escala_x = _largura_animada(carta, agora)
+    largura_atual = max(int(rect.width * escala_x), 6)
+    rect_animado = pygame.Rect(0, 0, largura_atual, rect.height)
+    rect_animado.center = rect.center
+
+    mostrar_frente = carta["virado"] or carta["acertado"]
+
+    if carta["acertado"]:
+        cor_fundo = COR_ACERTADA
+        cor_borda = COR_ACERTADA_BORDA
+    elif mostrar_frente:
+        cor_fundo = COR_VIRADA
+        cor_borda = COR_BORDA
+    else:
+        cor_fundo = COR_COSTAS
+        cor_borda = COR_COSTAS_BORDA
+
+    pygame.draw.rect(surface, cor_fundo, rect_animado, border_radius=12)
+    pygame.draw.rect(surface, cor_borda, rect_animado, width=3, border_radius=12)
+
+    if escala_x > 0.35:
+        if mostrar_frente:
+            desenhar_fruta(surface, carta["simbolo"], rect_animado)
+        else:
+            _desenhar_padrao_costas(surface, rect_animado)
+
+
+def _desenhar_padrao_costas(surface, rect):
+    """Desenha um padrao decorativo simples nas costas da carta (losango)."""
+    cx, cy = rect.center
+    pontos = [
+        (cx, rect.top + 14),
+        (rect.right - 14, cy),
+        (cx, rect.bottom - 14),
+        (rect.left + 14, cy),
+    ]
+    if rect.width > 20:
+        pygame.draw.polygon(surface, (255, 255, 255), pontos, width=2)
+        pygame.draw.circle(surface, (255, 255, 255), (cx, cy), 6, width=2)
+
+
+def desenhar_tabuleiro(surface, tabuleiro, agora):
     """Desenha todas as cartas do tabuleiro."""
     for linha in range(LINHAS):
         for coluna in range(COLUNAS):
             carta = tabuleiro[linha][coluna]
             x, y = get_pos(linha, coluna)
             rect = pygame.Rect(x, y, CARD_W, CARD_H)
-
-            if carta["acertado"]:
-                cor = COR_ACERTADA
-            elif carta["virado"]:
-                cor = COR_VIRADA
-            else:
-                cor = COR_COSTAS
-
-            pygame.draw.rect(surface, cor, rect, border_radius=6)
-            pygame.draw.rect(surface, COR_BORDA, rect, width=2, border_radius=6)
-
-            if carta["virado"] or carta["acertado"]:
-                largura, altura = medir_texto(carta["simbolo"], escala=7)
-                desenhar_texto(
-                    surface,
-                    carta["simbolo"],
-                    COR_TEXTO,
-                    (x + (CARD_W - largura) // 2, y + (CARD_H - altura) // 2),
-                    escala=7,
-                )
+            desenhar_carta(surface, carta, rect, agora)
 
 
-def desenhar_hud(surface, estado):
+def desenhar_painel_hud(surface):
+    """Desenha um painel semi-transparente atras do HUD para legibilidade."""
+    painel = pygame.Surface((LARGURA, 70), pygame.SRCALPHA)
+    painel.fill((10, 14, 30, 110))
+    surface.blit(painel, (0, 0))
+
+
+def desenhar_botao_jogar_novamente(surface, mouse_pos):
+    """Desenha o botão 'Jogar Novamente' e retorna seu retângulo (para detecção de clique)."""
+    hover = BOTAO_RECT.collidepoint(mouse_pos)
+    cor = COR_BOTAO_HOVER if hover else COR_BOTAO
+
+    sombra = BOTAO_RECT.move(2, 3)
+    pygame.draw.rect(surface, (10, 14, 30), sombra, border_radius=10)
+    pygame.draw.rect(surface, cor, BOTAO_RECT, border_radius=10)
+    pygame.draw.rect(surface, (140, 90, 10), BOTAO_RECT, width=2, border_radius=10)
+
+    texto = "JOGAR NOVAMENTE"
+    largura, altura = medir_texto(texto, escala=2)
+    desenhar_texto(
+        surface,
+        texto,
+        COR_BOTAO_TEXTO,
+        (
+            BOTAO_RECT.x + (BOTAO_RECT.width - largura) // 2,
+            BOTAO_RECT.y + (BOTAO_RECT.height - altura) // 2,
+        ),
+        escala=2,
+    )
+    return BOTAO_RECT
+
+
+def desenhar_hud(surface, estado, mouse_pos):
     """Desenha tentativas, tempo, progresso, recorde e mensagem final."""
+    desenhar_painel_hud(surface)
+
     desenhar_texto(
         surface,
         f"Tentativas: {estado['tentativas']}",
         COR_HUD,
         (10, 10),
         escala=2,
+        sombra=COR_HUD_SOMBRA,
     )
     desenhar_texto(
         surface,
         f"Tempo: {formatar_tempo(estado['tempo'])}",
         COR_HUD,
-        (180, 10),
+        (200, 10),
         escala=2,
+        sombra=COR_HUD_SOMBRA,
     )
     desenhar_texto(
         surface,
         f"Pares: {estado['pares_acertados']}/{TOTAL_PARES}",
         COR_HUD,
-        (330, 10),
+        (370, 10),
         escala=2,
+        sombra=COR_HUD_SOMBRA,
     )
     desenhar_texto(
         surface,
@@ -236,42 +364,146 @@ def desenhar_hud(surface, estado):
         COR_HUD,
         (10, 38),
         escala=2,
+        sombra=COR_HUD_SOMBRA,
     )
 
     if estado["vitoria"]:
-        mensagem = "Parabens! Voce venceu!"
+        painel = pygame.Surface((LARGURA, ALTURA - BOTAO_Y + 64), pygame.SRCALPHA)
+        painel.fill((10, 14, 30, 150))
+        surface.blit(painel, (0, BOTAO_Y - 64))
+
+        mensagem = "PARABENS! VOCE VENCEU!"
         largura, altura = medir_texto(mensagem, escala=3)
         desenhar_texto(
             surface,
             mensagem,
             COR_DESTAQUE,
-            ((LARGURA - largura) // 2, ALTURA - altura - 18),
+            ((LARGURA - largura) // 2, BOTAO_Y - altura - 16),
             escala=3,
+            sombra=(60, 40, 0),
         )
+        desenhar_botao_jogar_novamente(surface, mouse_pos)
+
+
+def desenhar_botao_generico(surface, rect, texto, mouse_pos, cor_normal, cor_hover, cor_texto, cor_borda):
+    """Desenha um botão retangular reutilizável, com sombra e efeito de hover."""
+    hover = rect.collidepoint(mouse_pos)
+    cor = cor_hover if hover else cor_normal
+
+    sombra = rect.move(2, 3)
+    pygame.draw.rect(surface, (10, 14, 30), sombra, border_radius=10)
+    pygame.draw.rect(surface, cor, rect, border_radius=10)
+    pygame.draw.rect(surface, cor_borda, rect, width=2, border_radius=10)
+
+    largura, altura = medir_texto(texto, escala=2)
+    desenhar_texto(
+        surface,
+        texto,
+        cor_texto,
+        (rect.x + (rect.width - largura) // 2, rect.y + (rect.height - altura) // 2),
+        escala=2,
+    )
+
+
+def desenhar_menu(surface, mouse_pos, recorde, agora):
+    """Desenha a tela de menu inicial: titulo, frutinhas decorativas, recorde e botao Jogar."""
+    desenhar_fundo(surface)
+
+    # Frutinhas decorativas espalhadas no topo, com leve flutuacao vertical
+    decoracoes = [
+        ("maca", 90, 70), ("banana", 200, 60), ("uva", 310, 75),
+        ("morango", 420, 60), ("laranja", 530, 72),
+    ]
+    for simbolo, x, y_base in decoracoes:
+        offset = math.sin((agora / 450) + x) * 6
+        rect = pygame.Rect(0, 0, 70, 70)
+        rect.center = (x, y_base + offset)
+        desenhar_fruta(surface, simbolo, rect)
+
+    # Titulo
+    titulo = "REMIND"
+    largura, altura = medir_texto(titulo, escala=6)
+    desenhar_texto(
+        surface,
+        titulo,
+        COR_DESTAQUE,
+        ((LARGURA - largura) // 2, 150),
+        escala=6,
+        sombra=(60, 40, 0),
+    )
+
+    subtitulo = "JOGO DA MEMORIA"
+    largura_sub, _ = medir_texto(subtitulo, escala=2)
+    desenhar_texto(
+        surface,
+        subtitulo,
+        COR_HUD,
+        ((LARGURA - largura_sub) // 2, 210),
+        escala=2,
+        sombra=COR_HUD_SOMBRA,
+    )
+
+    # Recorde atual
+    texto_recorde = formatar_recorde(recorde)
+    largura_rec, _ = medir_texto(texto_recorde, escala=2)
+    desenhar_texto(
+        surface,
+        texto_recorde,
+        COR_HUD,
+        ((LARGURA - largura_rec) // 2, BOTAO_MENU_Y - 40),
+        escala=2,
+        sombra=COR_HUD_SOMBRA,
+    )
+
+    # Botao Jogar
+    desenhar_botao_generico(
+        surface, BOTAO_MENU_RECT, "JOGAR",
+        mouse_pos, COR_BOTAO, COR_BOTAO_HOVER, COR_BOTAO_TEXTO, (140, 90, 10),
+    )
+
+    # Dica de saida
+    dica = "ESC PARA SAIR"
+    largura_dica, _ = medir_texto(dica, escala=1)
+    desenhar_texto(
+        surface,
+        dica,
+        (160, 175, 220),
+        ((LARGURA - largura_dica) // 2, ALTURA - 30),
+        escala=1,
+    )
+
+
+def novo_jogo_estado(recorde):
+    """Cria o dicionário de estado inicial de uma partida nova."""
+    return {
+        "tabuleiro": criar_tabuleiro(),
+        "selecionadas": [],
+        "tentativas": 0,
+        "bloqueado": False,
+        "tempo_bloqueio": 0,
+        "vitoria": False,
+        "inicio_ticks": pygame.time.get_ticks(),
+        "tempo_final": 0,
+        "recorde": recorde,
+    }
 
 
 def executar_jogo():
-    """Executa o loop principal do jogo."""
+    """Executa o loop principal do jogo (menu inicial + partida)."""
     pygame.init()
 
     tela = pygame.display.set_mode((LARGURA, ALTURA))
     pygame.display.set_caption("Remind - Jogo da Memoria")
     relogio = pygame.time.Clock()
 
-    tabuleiro = criar_tabuleiro()
-    selecionadas = []
-    tentativas = 0
-    bloqueado = False
-    tempo_bloqueio = 0
-    vitoria = False
-    inicio_ticks = pygame.time.get_ticks()
-    tempo_final = 0
     recorde = carregar_recorde(CAMINHO_RECORDE)
+    estado_app = "menu"  # "menu" ou "jogando"
+    jogo = None
+    sons = obter_gerenciador()
 
     while True:
-        tempo_atual = tempo_final
-        if not vitoria:
-            tempo_atual = (pygame.time.get_ticks() - inicio_ticks) // 1000
+        agora = pygame.time.get_ticks()
+        mouse_pos = pygame.mouse.get_pos()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -282,38 +514,57 @@ def executar_jogo():
                 pygame.quit()
                 sys.exit()
 
-            if event.type == pygame.MOUSEBUTTONDOWN and not bloqueado and not vitoria:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if estado_app == "menu":
+                    if BOTAO_MENU_RECT.collidepoint(event.pos):
+                        sons.tocar("clique")
+                        jogo = novo_jogo_estado(recorde)
+                        estado_app = "jogando"
+                    continue
+
+                # estado_app == "jogando"
+                if jogo["vitoria"] and BOTAO_RECT.collidepoint(event.pos):
+                    sons.tocar("clique")
+                    jogo = novo_jogo_estado(recorde)
+                    continue
+
+                if jogo["bloqueado"] or jogo["vitoria"]:
+                    continue
+
                 pos = carta_clicada(*event.pos)
                 if pos is None:
                     continue
 
                 linha, coluna = pos
-                carta = tabuleiro[linha][coluna]
+                carta = jogo["tabuleiro"][linha][coluna]
 
-                if carta["virado"] or carta["acertado"] or pos in selecionadas:
+                if carta["virado"] or carta["acertado"] or pos in jogo["selecionadas"]:
                     continue
 
                 carta["virado"] = True
-                selecionadas.append(pos)
+                carta["anim_inicio"] = agora
+                jogo["selecionadas"].append(pos)
+                sons.tocar("virar")
 
-                if len(selecionadas) == 2:
-                    tentativas += 1
-                    linha_1, coluna_1 = selecionadas[0]
-                    linha_2, coluna_2 = selecionadas[1]
-                    carta_1 = tabuleiro[linha_1][coluna_1]
-                    carta_2 = tabuleiro[linha_2][coluna_2]
+                if len(jogo["selecionadas"]) == 2:
+                    jogo["tentativas"] += 1
+                    linha_1, coluna_1 = jogo["selecionadas"][0]
+                    linha_2, coluna_2 = jogo["selecionadas"][1]
+                    carta_1 = jogo["tabuleiro"][linha_1][coluna_1]
+                    carta_2 = jogo["tabuleiro"][linha_2][coluna_2]
 
                     if carta_1["simbolo"] == carta_2["simbolo"]:
                         carta_1["acertado"] = True
                         carta_2["acertado"] = True
-                        selecionadas = []
-                        vitoria = checar_vitoria(tabuleiro)
+                        jogo["selecionadas"] = []
+                        jogo["vitoria"] = checar_vitoria(jogo["tabuleiro"])
 
-                        if vitoria:
-                            tempo_final = tempo_atual
+                        if jogo["vitoria"]:
+                            tempo_atual = (agora - jogo["inicio_ticks"]) // 1000
+                            jogo["tempo_final"] = tempo_atual
                             novo_recorde = {
-                                "tentativas": tentativas,
-                                "tempo": tempo_final,
+                                "tentativas": jogo["tentativas"],
+                                "tempo": jogo["tempo_final"],
                             }
                             if recorde_melhor(novo_recorde, recorde):
                                 salvar_recorde(
@@ -322,32 +573,45 @@ def executar_jogo():
                                     novo_recorde["tempo"],
                                 )
                                 recorde = novo_recorde
+                                jogo["recorde"] = novo_recorde
+                            sons.tocar("vitoria")
+                        else:
+                            sons.tocar("acertar")
                     else:
-                        bloqueado = True
-                        tempo_bloqueio = pygame.time.get_ticks()
+                        jogo["bloqueado"] = True
+                        jogo["tempo_bloqueio"] = agora
+                        sons.tocar("errar")
 
-        if bloqueado and pygame.time.get_ticks() - tempo_bloqueio >= DELAY_MS:
-            for linha, coluna in selecionadas:
+        if estado_app == "menu":
+            desenhar_menu(tela, mouse_pos, recorde, agora)
+            pygame.display.flip()
+            relogio.tick(FPS)
+            continue
+
+        # estado_app == "jogando"
+        tabuleiro = jogo["tabuleiro"]
+
+        tempo_atual = jogo["tempo_final"]
+        if not jogo["vitoria"]:
+            tempo_atual = (agora - jogo["inicio_ticks"]) // 1000
+
+        if jogo["bloqueado"] and agora - jogo["tempo_bloqueio"] >= DELAY_MS:
+            for linha, coluna in jogo["selecionadas"]:
                 tabuleiro[linha][coluna]["virado"] = False
-            selecionadas = []
-            bloqueado = False
+                tabuleiro[linha][coluna]["anim_inicio"] = agora
+            jogo["selecionadas"] = []
+            jogo["bloqueado"] = False
 
         estado = {
-            "tentativas": tentativas,
+            "tentativas": jogo["tentativas"],
             "tempo": tempo_atual,
             "pares_acertados": contar_pares_acertados(tabuleiro),
-            "recorde": recorde,
-            "vitoria": vitoria,
+            "recorde": jogo["recorde"],
+            "vitoria": jogo["vitoria"],
         }
 
-        tela.fill(FUNDO)
-        desenhar_tabuleiro(tela, tabuleiro)
-        desenhar_hud(tela, estado)
+        desenhar_fundo(tela)
+        desenhar_tabuleiro(tela, tabuleiro, agora)
+        desenhar_hud(tela, estado, mouse_pos)
         pygame.display.flip()
         relogio.tick(FPS)
-
-from src.jogo import executar_jogo
-
-
-if __name__ == "__main__":
-    executar_jogo()
