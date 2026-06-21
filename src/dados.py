@@ -1,19 +1,48 @@
-def salvar_recorde(caminho_arquivo, pontuacao):
-    """Salva a pontuação recorde em arquivo texto."""
+"""Leitura, escrita e comparacao de recordes."""
+
+
+def recorde_melhor(novo, atual):
+    """Indica se o novo resultado supera o recorde atual."""
+    if atual is None:
+        return True
+
+    if novo["tentativas"] < atual["tentativas"]:
+        return True
+
+    if novo["tentativas"] == atual["tentativas"]:
+        return novo["tempo"] < atual["tempo"]
+
+    return False
+
+
+def salvar_recorde(caminho_arquivo, tentativas, tempo):
+    """Salva o melhor resultado no formato tentativas;tempo."""
     with open(caminho_arquivo, "w", encoding="utf-8") as arquivo:
-        arquivo.write(str(pontuacao))
+        arquivo.write(f"{tentativas};{tempo}")
 
 
 def carregar_recorde(caminho_arquivo):
-    """Carrega o recorde salvo; retorna 0 se não existir valor válido."""
+    """Carrega o recorde salvo; retorna None se nao existir valor valido."""
     try:
         with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
             conteudo = arquivo.read().strip()
-
-            if conteudo == "":
-                return 0
-
-            return int(conteudo)
-
     except FileNotFoundError:
-        return 0
+        return None
+
+    if conteudo == "":
+        return None
+
+    partes = conteudo.split(";")
+    if len(partes) != 2:
+        return None
+
+    try:
+        tentativas = int(partes[0])
+        tempo = int(partes[1])
+    except ValueError:
+        return None
+
+    if tentativas <= 0 or tempo < 0:
+        return None
+
+    return {"tentativas": tentativas, "tempo": tempo}

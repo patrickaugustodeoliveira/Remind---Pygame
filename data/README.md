@@ -4,9 +4,8 @@ Esta pasta guarda arquivos de persistencia simples em texto.
 
 ## Arquivos
 
-- `recorde.txt`: melhor pontuacao registrada.
+- `recorde.txt`: melhor resultado registrado no formato `tentativas;tempo_em_segundos`.
 - `ranking.txt`: base para ranking de jogadores (opcional neste template).
-- `README.txt`: arquivo legado; manter por compatibilidade se necessario.
 
 ## Observacao
 
