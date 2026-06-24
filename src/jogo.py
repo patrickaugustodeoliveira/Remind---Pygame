@@ -451,6 +451,35 @@ def novo_jogo_estado(recorde):
     }
 
 
+def _processar_par(jogo, recorde, agora):
+    linha_1, coluna_1 = jogo["selecionadas"][0]
+    linha_2, coluna_2 = jogo["selecionadas"][1]
+    carta_1 = jogo["tabuleiro"][linha_1][coluna_1]
+    carta_2 = jogo["tabuleiro"][linha_2][coluna_2]
+
+    if carta_1["simbolo"] == carta_2["simbolo"]:
+        carta_1["acertado"] = True
+        carta_2["acertado"] = True
+        jogo["selecionadas"] = []
+        jogo["vitoria"] = checar_vitoria(jogo["tabuleiro"])
+
+        if jogo["vitoria"]:
+            jogo["tempo_final"] = (agora - jogo["inicio_ticks"]) // 1000
+            novo_recorde = {
+                "tentativas": jogo["tentativas"],
+                "tempo": jogo["tempo_final"],
+            }
+            if recorde_melhor(novo_recorde, recorde):
+                salvar_recorde(CAMINHO_RECORDE, novo_recorde["tentativas"], novo_recorde["tempo"])
+                recorde = novo_recorde
+                jogo["recorde"] = novo_recorde
+    else:
+        jogo["bloqueado"] = True
+        jogo["tempo_bloqueio"] = agora
+
+    return recorde
+
+
 def executar_jogo():
     pygame.init()
 
@@ -467,77 +496,45 @@ def executar_jogo():
         mouse_pos = pygame.mouse.get_pos()
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            sair = event.type == pygame.QUIT
+            sair = sair or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE)
+            if sair:
                 pygame.quit()
                 sys.exit()
 
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                sys.exit()
+            if event.type != pygame.MOUSEBUTTONDOWN:
+                continue
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if estado_app == "menu":
-                    if BOTAO_MENU_RECT.collidepoint(event.pos):
-                        
-                        jogo = novo_jogo_estado(recorde)
-                        estado_app = "jogando"
-                    continue
-
-
-                if jogo["vitoria"] and BOTAO_RECT.collidepoint(event.pos):
-                    
+            if estado_app == "menu":
+                if BOTAO_MENU_RECT.collidepoint(event.pos):
                     jogo = novo_jogo_estado(recorde)
-                    continue
+                    estado_app = "jogando"
+                continue
 
-                if jogo["bloqueado"] or jogo["vitoria"]:
-                    continue
+            if jogo["vitoria"]:
+                if BOTAO_RECT.collidepoint(event.pos):
+                    jogo = novo_jogo_estado(recorde)
+                continue
 
-                pos = carta_clicada(*event.pos)
-                if pos is None:
-                    continue
+            if jogo["bloqueado"]:
+                continue
 
-                linha, coluna = pos
-                carta = jogo["tabuleiro"][linha][coluna]
+            pos = carta_clicada(*event.pos)
+            if pos is None:
+                continue
 
-                if carta["virado"] or carta["acertado"] or pos in jogo["selecionadas"]:
-                    continue
+            linha, coluna = pos
+            carta = jogo["tabuleiro"][linha][coluna]
+            if carta["virado"] or carta["acertado"] or pos in jogo["selecionadas"]:
+                continue
 
-                carta["virado"] = True
-                carta["anim_inicio"] = agora
-                jogo["selecionadas"].append(pos)
-                
+            carta["virado"] = True
+            carta["anim_inicio"] = agora
+            jogo["selecionadas"].append(pos)
 
-                if len(jogo["selecionadas"]) == 2:
-                    jogo["tentativas"] += 1
-                    linha_1, coluna_1 = jogo["selecionadas"][0]
-                    linha_2, coluna_2 = jogo["selecionadas"][1]
-                    carta_1 = jogo["tabuleiro"][linha_1][coluna_1]
-                    carta_2 = jogo["tabuleiro"][linha_2][coluna_2]
-
-                    if carta_1["simbolo"] == carta_2["simbolo"]:
-                        carta_1["acertado"] = True
-                        carta_2["acertado"] = True
-                        jogo["selecionadas"] = []
-                        jogo["vitoria"] = checar_vitoria(jogo["tabuleiro"])
-
-                        if jogo["vitoria"]:
-                            tempo_atual = (agora - jogo["inicio_ticks"]) // 1000
-                            jogo["tempo_final"] = tempo_atual
-                            novo_recorde = {
-                                "tentativas": jogo["tentativas"],
-                                "tempo": jogo["tempo_final"],
-                            }
-                            if recorde_melhor(novo_recorde, recorde):
-                                salvar_recorde(
-                                    CAMINHO_RECORDE,
-                                    novo_recorde["tentativas"],
-                                    novo_recorde["tempo"],
-                                )
-                                recorde = novo_recorde
-                                jogo["recorde"] = novo_recorde
-                    else:
-                        jogo["bloqueado"] = True
-                        jogo["tempo_bloqueio"] = agora
+            if len(jogo["selecionadas"]) == 2:
+                jogo["tentativas"] += 1
+                recorde = _processar_par(jogo, recorde, agora)
 
         if estado_app == "menu":
             desenhar_menu(tela, mouse_pos, recorde, agora)
@@ -546,10 +543,7 @@ def executar_jogo():
             continue
 
         tabuleiro = jogo["tabuleiro"]
-
-        tempo_atual = jogo["tempo_final"]
-        if not jogo["vitoria"]:
-            tempo_atual = (agora - jogo["inicio_ticks"]) // 1000
+        tempo_atual = jogo["tempo_final"] if jogo["vitoria"] else (agora - jogo["inicio_ticks"]) // 1000
 
         if jogo["bloqueado"] and agora - jogo["tempo_bloqueio"] >= DELAY_MS:
             for linha, coluna in jogo["selecionadas"]:

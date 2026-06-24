@@ -12,4 +12,3 @@ CINZA = (212, 212, 212)
 
 _RAIZ_PROJETO = Path(__file__).resolve().parent.parent
 CAMINHO_RECORDE = str(_RAIZ_PROJETO / "data" / "recorde.txt")
-CAMINHO_SPRITES = str(_RAIZ_PROJETO / "assets" / "imagens" / "spritesheet.bmp")
