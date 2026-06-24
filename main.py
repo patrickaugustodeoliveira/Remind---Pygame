@@ -1,5 +1,3 @@
-"""Ponto de entrada oficial do jogo Remind."""
-
 from src.jogo import executar_jogo
 
 

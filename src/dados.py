@@ -1,8 +1,4 @@
-"""Leitura, escrita e comparacao de recordes."""
-
-
 def recorde_melhor(novo, atual):
-    """Indica se o novo resultado supera o recorde atual."""
     if atual is None:
         return True
 
@@ -16,13 +12,11 @@ def recorde_melhor(novo, atual):
 
 
 def salvar_recorde(caminho_arquivo, tentativas, tempo):
-    """Salva o melhor resultado no formato tentativas;tempo."""
     with open(caminho_arquivo, "w", encoding="utf-8") as arquivo:
         arquivo.write(f"{tentativas};{tempo}")
 
 
 def carregar_recorde(caminho_arquivo):
-    """Carrega o recorde salvo; retorna None se nao existir valor valido."""
     try:
         with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
             conteudo = arquivo.read().strip()

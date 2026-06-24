@@ -112,7 +112,6 @@ Cartas do jogo, que devem ser viradas para encontrar pares iguais.
 ## 12. Recursos externos previstos
 
 * Imagens simples para cartas (banco gratuito ou criação própria)
-* Sons simples para acerto/erro (opcional)
 * Fontes padrão do Pygame
 
 ---
@@ -146,6 +145,5 @@ A versão mínima do jogo terá:
 * Sistema de ranking
 * Diferentes níveis de dificuldade
 * Mais cartas e tamanhos de tabuleiro
-* Sons e animações
 * Tela inicial com menu
 * Sistema de tempo (timer)
